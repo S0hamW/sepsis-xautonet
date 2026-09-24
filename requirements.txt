@@ -1,0 +1,22 @@
+# Core Numerical & Data Processing
+numpy>=1.26.0
+pandas>=2.0.0
+scipy>=1.11.0
+
+# Classical Machine Learning, Imputation & Class Balancing
+scikit-learn>=1.4.0
+imbalanced-learn>=0.12.0
+
+# Deep Learning (1D CNN Autoencoder & Classifier Head)
+torch>=2.2.0
+
+# Explainable AI (DeepSHAP & DeepLIFT)
+shap>=0.45.0
+
+# Clinical Decision Support REST API & Server
+fastapi>=0.110.0
+pydantic>=2.7.0
+uvicorn>=0.28.0
+
+# Testing Framework
+pytest>=8.0.0

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XAutoNet: Explainable AI Clinical Sepsis Early Warning System</title>
+  <meta name="description" content="AI clinical decision support system predicting sepsis onset 6 hours in advance with 1D GradCAM and DeepSHAP explainability.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="clinical-theme">
+  <!-- Top Navigation / Telemetry Header -->
+  <header class="app-header">
+    <div class="brand-container">
+      <div class="brand-logo-icon">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">XAutoNet <span class="badge-accent">Clinical AI</span></h1>
+        <p class="brand-subtitle">Explainable Sepsis Early Warning System (6-Hour Advance Horizon)</p>
+      </div>
+    </div>
+    <div class="telemetry-status-pills">
+      <div class="status-pill status-live">
+        <span class="pulse-dot"></span>
+        <span>ICU Telemetry: Active</span>
+      </div>
+      <div class="status-pill status-info">
+        <span>Model: 1D Conv-AE + DNN</span>
+      </div>
+      <div class="status-pill status-paper">
+        <span>IEEE IRI 2023 Validated</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content-wrapper">
+    <!-- Preset Case Selector Ribbon -->
+    <section class="patient-preset-ribbon" aria-label="Patient selection">
+      <div class="ribbon-label">
+        <span class="icon-pulse">⚕</span> <strong>Clinical Case Selectors:</strong>
+      </div>
+      <div class="ribbon-buttons">
+        <button id="btn-patient-a" class="btn btn-preset btn-patient-a" title="Load Patient A from research paper">
+          <span class="patient-dot dot-normal"></span> Load Patient A (Normal / TN)
+        </button>
+        <button id="btn-patient-b" class="btn btn-preset btn-patient-b" title="Load Patient B from research paper">
+          <span class="patient-dot dot-danger"></span> Load Patient B (Septic / TP)
+        </button>
+        <button id="btn-random-patient" class="btn btn-preset btn-neutral" title="Generate stochastic ICU profile">
+          <span class="patient-dot dot-neutral"></span> Random ICU Case
+        </button>
+      </div>
+      <div id="case-description" class="case-description-text">
+        Viewing custom ICU telemetry parameters.
+      </div>
+    </section>
+
+    <!-- Core Interactive Grid -->
+    <div class="clinical-dashboard-grid">
+      <!-- Left Column: Patient Biomarkers & Parameters (19 Features) -->
+      <section class="dashboard-card parameters-card" aria-labelledby="heading-biomarkers">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-biomarkers" class="card-title">Patient Biomarkers & Laboratory Values</h2>
+            <p class="card-subtitle">19 Filter-Selected Features (PhysioNet Challenge 2019)</p>
+          </div>
+          <button id="btn-run-prediction" class="btn btn-primary pulse-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Analyze Risk
+          </button>
+        </div>
+
+        <div class="feature-categories-grid">
+          <!-- Category 1: Vital Signs & Derived -->
+          <div class="category-block">
+            <h3 class="category-title">Vitals & Scores</h3>
+            <div class="input-row">
+              <label for="input-Temp">Body Temp (°C)<span class="ref-range">36.1 - 37.2</span></label>
+              <input type="number" id="input-Temp" step="0.01" value="36.92">
+            </div>
+            <div class="input-row">
+              <label for="input-Resp">Respiration (bpm)<span class="ref-range">12 - 20</span></label>
+              <input type="number" id="input-Resp" step="0.01" value="20.98">
+            </div>
+            <div class="input-row">
+              <label for="input-SIRS">SIRS Score<span class="ref-range">0 - 1 (≥2 risk)</span></label>
+              <input type="number" id="input-SIRS" step="1" min="0" max="4" value="3">
+            </div>
+            <div class="input-row">
+              <label for="input-O2Sat">O2 Saturation (%)<span class="ref-range">95 - 100</span></label>
+              <input type="number" id="input-O2Sat" step="0.1" value="98.0">
+            </div>
+            <div class="input-row">
+              <label for="input-SaO2">SaO2 (%)<span class="ref-range">95 - 100</span></label>
+              <input type="number" id="input-SaO2" step="0.1" value="98.0">
+            </div>
+            <div class="input-row">
+              <label for="input-FiO2">FiO2 (fraction)<span class="ref-range">0.21 - 0.50</span></label>
+              <input type="number" id="input-FiO2" step="0.01" value="0.25">
+            </div>
+          </div>
+
+          <!-- Category 2: Blood Gas & Acid-Base -->
+          <div class="category-block">
+            <h3 class="category-title">Blood Gas & Acid-Base</h3>
+            <div class="input-row">
+              <label for="input-BaseExcess">Base Excess (mEq/L)<span class="ref-range">-2.0 to 2.0</span></label>
+              <input type="number" id="input-BaseExcess" step="0.01" value="-0.106">
+            </div>
+            <div class="input-row">
+              <label for="input-HCO3">Bicarbonate HCO3<span class="ref-range">22 - 28</span></label>
+              <input type="number" id="input-HCO3" step="0.01" value="20.94">
+            </div>
+            <div class="input-row">
+              <label for="input-pH">Arterial pH<span class="ref-range">7.35 - 7.45</span></label>
+              <input type="number" id="input-pH" step="0.01" value="7.39">
+            </div>
+            <div class="input-row">
+              <label for="input-Lactate">Lactate (mmol/L)<span class="ref-range">0.5 - 2.0</span></label>
+              <input type="number" id="input-Lactate" step="0.1" value="1.1">
+            </div>
+          </div>
+
+          <!-- Category 3: Renal & Metabolic -->
+          <div class="category-block">
+            <h3 class="category-title">Renal & Chemistry</h3>
+            <div class="input-row">
+              <label for="input-Creatinine">Creatinine (mg/dL)<span class="ref-range">0.6 - 1.2</span></label>
+              <input type="number" id="input-Creatinine" step="0.01" value="1.14">
+            </div>
+            <div class="input-row">
+              <label for="input-BUN">BUN (mg/dL)<span class="ref-range">7 - 20</span></label>
+              <input type="number" id="input-BUN" step="0.1" value="14.0">
+            </div>
+            <div class="input-row">
+              <label for="input-Phosphate">Phosphate (mg/dL)<span class="ref-range">2.5 - 4.5</span></label>
+              <input type="number" id="input-Phosphate" step="0.01" value="3.17">
+            </div>
+            <div class="input-row">
+              <label for="input-Calcium">Calcium (mg/dL)<span class="ref-range">8.5 - 10.5</span></label>
+              <input type="number" id="input-Calcium" step="0.1" value="9.1">
+            </div>
+            <div class="input-row">
+              <label for="input-Magnesium">Magnesium (mg/dL)<span class="ref-range">1.7 - 2.2</span></label>
+              <input type="number" id="input-Magnesium" step="0.01" value="2.0">
+            </div>
+          </div>
+
+          <!-- Category 4: Hematology & Electrolytes -->
+          <div class="category-block">
+            <h3 class="category-title">Hematology & Electrolytes</h3>
+            <div class="input-row">
+              <label for="input-Hct">Hematocrit Hct (%)<span class="ref-range">36 - 50</span></label>
+              <input type="number" id="input-Hct" step="0.01" value="29.34">
+            </div>
+            <div class="input-row">
+              <label for="input-Hgb">Hemoglobin Hgb (g/dL)<span class="ref-range">12.0 - 17.5</span></label>
+              <input type="number" id="input-Hgb" step="0.01" value="9.99">
+            </div>
+            <div class="input-row">
+              <label for="input-Potassium">Potassium (mEq/L)<span class="ref-range">3.5 - 5.0</span></label>
+              <input type="number" id="input-Potassium" step="0.01" value="4.22">
+            </div>
+            <div class="input-row">
+              <label for="input-Chloride">Chloride (mEq/L)<span class="ref-range">96 - 106</span></label>
+              <input type="number" id="input-Chloride" step="0.01" value="107.09">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Real-time Sepsis Alert & Prediction Gauge -->
+      <section class="dashboard-card prediction-center-card" aria-labelledby="heading-prediction">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-prediction" class="card-title">Early Warning Prediction Center</h2>
+            <p class="card-subtitle">Trained on 11 Latent Features (1D Conv1D Autoencoder)</p>
+          </div>
+          <div class="lead-time-tag">
+            <span class="lead-time-icon">⏱</span>
+            <span>+6 Hours Advance Notice</span>
+          </div>
+        </div>
+
+        <div class="prediction-body">
+          <!-- Circular Gauge Display -->
+          <div class="gauge-container">
+            <svg class="circular-chart" viewBox="0 0 36 36">
+              <path class="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path id="gauge-progress-circle" class="circle-progress"
+                stroke-dasharray="14, 100"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <text x="18" y="19" class="percentage" id="gauge-percentage-text">14%</text>
+              <text x="18" y="24" class="gauge-subtext">Sepsis Risk</text>
+            </svg>
+          </div>
+
+          <!-- Alert Level Banner -->
+          <div id="alert-banner" class="alert-banner alert-normal">
+            <div class="alert-icon-wrap" id="alert-icon">✓</div>
+            <div class="alert-details">
+              <div class="alert-headline" id="alert-headline">NORMAL RISK PROFILE</div>
+              <div class="alert-action" id="alert-action">Standard ICU telemetry monitoring; low current probability of sepsis onset within 6 hours.</div>
+            </div>
+          </div>
+
+          <!-- Quick Metrics Bar -->
+          <div class="metrics-mini-grid">
+            <div class="metric-box">
+              <span class="metric-label">Model Sensitivity (Recall)</span>
+              <span class="metric-value text-cyan">94.0%</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">Model Precision</span>
+              <span class="metric-value text-cyan">93.0%</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">F1-Score Benchmark</span>
+              <span class="metric-value text-emerald">0.93</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Dual Explainability Section (GradCAM + DeepSHAP) -->
+    <div class="xai-dual-section">
+      <!-- DeepSHAP Waterfall Card -->
+      <section class="dashboard-card xai-card" aria-labelledby="heading-shap">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-shap" class="card-title">DeepSHAP Patient Attribution (Waterfall)</h2>
+            <p class="card-subtitle">Explains individual patient risk factors (Red: increases risk, Blue: decreases risk)</p>
+          </div>
+          <div class="xai-badge badge-shap">DeepLIFT + Shapley</div>
+        </div>
+        <div class="waterfall-container" id="shap-waterfall-list">
+          <!-- Dynamic bars rendered by app.js -->
+        </div>
+        <div class="waterfall-legend">
+          <span class="legend-item"><span class="legend-chip chip-contributing"></span> Risk-Increasing Factor (Positive SHAP)</span>
+          <span class="legend-item"><span class="legend-chip chip-offsetting"></span> Protective / Normal Factor (Negative SHAP)</span>
+          <span class="legend-item"><span class="legend-chip chip-key"></span> Top 5 High-Impact Biomarker</span>
+        </div>
+      </section>
+
+      <!-- 1D GradCAM & DHM Card -->
+      <section class="dashboard-card xai-card" aria-labelledby="heading-gradcam">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-gradcam" class="card-title">1D GradCAM & Discounting HeatMap (DHM)</h2>
+            <p class="card-subtitle">Feature participation across Encoder Layers (E1 - E4) with &beta; = 0.9 Decision Line</p>
+          </div>
+          <div class="xai-badge badge-cam">GradCAM 1D</div>
+        </div>
+        <div class="gradcam-container">
+          <!-- Layer Heatmaps E1-E4 -->
+          <div class="layer-heatmaps-block">
+            <h3 class="subsection-title">Encoder Layer Activation Maps (EB1 → EB4)</h3>
+            <div id="gradcam-layers-view" class="layers-view-grid">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- DHM Decision Line Ranking -->
+          <div class="dhm-ranking-block">
+            <div class="dhm-header">
+              <h3 class="subsection-title">DHM Bottleneck Ranking & Decision Boundary</h3>
+              <span class="decision-line-label">Decision Line: Top 11 Features</span>
+            </div>
+            <div id="dhm-bars-list" class="dhm-bars-wrapper">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Benchmark Replication Section (Tables I & II) -->
+    <section class="dashboard-card benchmarks-section" aria-labelledby="heading-benchmarks">
+      <div class="card-header">
+        <div>
+          <h2 id="heading-benchmarks" class="card-title">IEEE IRI 2023 Published Experimental Benchmarks</h2>
+          <p class="card-subtitle">Comparison of XAutoNet against 9 Machine Learning baseline classifiers and 5-Fold CV</p>
+        </div>
+        <div class="tab-selectors">
+          <button id="tab-table-1" class="tab-btn active">Table I: 5-Fold Cross Validation</button>
+          <button id="tab-table-2" class="tab-btn">Table II: ML Model Comparison</button>
+        </div>
+      </div>
+
+      <div class="table-responsive" id="benchmark-table-container">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-content">
+      <p><strong>XAutoNet Clinical Decision Support</strong> — Built on research by Chakraborty et al. (Jio Institute & Reliance Jio AICoE, IEEE IRI 2023).</p>
+      <p class="footer-note">For investigational ICU clinical assistance. Sepsis predictions represent 6-hour advance warning horizon based on 19 PhysioNet features.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

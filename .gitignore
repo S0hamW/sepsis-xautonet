@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+
+.vscode/
+.idea/
+
+# PhysioNet dataset - DO NOT PUSH
+data/physionet-2019/
+
+# Model/output files
+outputs/
+results/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+*.log
+.DS_Store
+Thumbs.db
