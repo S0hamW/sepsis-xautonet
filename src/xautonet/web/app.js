@@ -13,12 +13,9 @@ const BOTTLENECK_FEATURES = [
   "Hgb", "SIRS", "Potassium", "BaseExcess", "Chloride"
 ];
 
-const TOP_SHAP_FEATURES = ["Creatinine", "Hct", "Phosphate", "HCO3", "Resp"];
-
-// Preset Patients from Paper (Fig. 4)
 const PRESETS = {
   patient_a: {
-    description: "Patient A (Normal / True Negative): 8/11 features reducing risk; Hgb contributing most to risk reduction.",
+    description: "Patient A (Normal Profile): Afebrile (36.92°C), normal acid-base and lactate. Routine monitoring indicated.",
     vitals: {
       BaseExcess: -0.106,
       Temp: 36.92,
@@ -42,7 +39,7 @@ const PRESETS = {
     }
   },
   patient_b: {
-    description: "Patient B (Septic / True Positive): High fever (40.22°C), tachypnea (Resp 28 bpm), elevated sepsis risk 6 hours ahead.",
+    description: "Patient B (Septic Profile): High fever (40.22°C), tachypnea (Resp 28 bpm), elevated base excess (+6.0). Elevated risk of sepsis onset within 6 hours.",
     vitals: {
       BaseExcess: 6.0,
       Temp: 40.22,
@@ -64,74 +61,58 @@ const PRESETS = {
       Calcium: 7.9,
       BUN: 42.0,
     }
+  },
+  patient_healthy: {
+    description: "Healthy ICU Baseline: All 19 biomarkers set at physiological midpoints of clinical normal ranges.",
+    vitals: {
+      BaseExcess: 0.0,
+      Temp: 36.65,
+      Chloride: 101.0,
+      Hct: 43.0,
+      Hgb: 14.75,
+      Resp: 16.0,
+      HCO3: 25.0,
+      SIRS: 0.0,
+      Potassium: 4.25,
+      Creatinine: 0.9,
+      Phosphate: 3.5,
+      FiO2: 0.355,
+      O2Sat: 97.5,
+      Magnesium: 1.95,
+      SaO2: 97.5,
+      Lactate: 1.25,
+      pH: 7.40,
+      Calcium: 9.5,
+      BUN: 13.5,
+    }
   }
 };
 
-let benchmarksData = null;
-
-// Initialize Dashboard
 document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
-  loadBenchmarks();
-  // Default load Patient A
   loadPatientPreset("patient_a");
 });
 
 function setupEventListeners() {
-  document.getElementById("btn-patient-a").addEventListener("click", () => loadPatientPreset("patient_a"));
-  document.getElementById("btn-patient-b").addEventListener("click", () => loadPatientPreset("patient_b"));
-  document.getElementById("btn-random-patient").addEventListener("click", generateRandomPatient);
-  document.getElementById("btn-run-prediction").addEventListener("click", executePrediction);
+  const btnA = document.getElementById("btn-patient-a");
+  const btnB = document.getElementById("btn-patient-b");
+  const btnH = document.getElementById("btn-patient-healthy");
+  const btnPredict = document.getElementById("btn-run-prediction");
 
-  document.getElementById("tab-table-1").addEventListener("click", (e) => switchBenchmarkTab("table_1", e.target));
-  document.getElementById("tab-table-2").addEventListener("click", (e) => switchBenchmarkTab("table_2", e.target));
+  if (btnA) btnA.addEventListener("click", () => loadPatientPreset("patient_a"));
+  if (btnB) btnB.addEventListener("click", () => loadPatientPreset("patient_b"));
+  if (btnH) btnH.addEventListener("click", () => loadPatientPreset("patient_healthy"));
+  if (btnPredict) btnPredict.addEventListener("click", executePrediction);
 }
 
 function loadPatientPreset(presetKey) {
   const preset = PRESETS[presetKey];
   if (!preset) return;
 
-  document.getElementById("case-description").textContent = preset.description;
+  const descEl = document.getElementById("case-description");
+  if (descEl) descEl.textContent = preset.description;
 
   for (const [feat, val] of Object.entries(preset.vitals)) {
-    const input = document.getElementById(`input-${feat}`);
-    if (input) {
-      input.value = val;
-    }
-  }
-
-  executePrediction();
-}
-
-function generateRandomPatient() {
-  const isSepsis = Math.random() > 0.5;
-  document.getElementById("case-description").textContent = isSepsis 
-    ? "Random Case: Simulating acute physiological deterioration profile."
-    : "Random Case: Simulating stable ICU recovery profile.";
-
-  const randomValues = {
-    BaseExcess: isSepsis ? (-5 + Math.random() * 8).toFixed(2) : (-1 + Math.random() * 2).toFixed(2),
-    Temp: isSepsis ? (38.8 + Math.random() * 1.6).toFixed(2) : (36.6 + Math.random() * 0.6).toFixed(2),
-    Chloride: (98 + Math.random() * 10).toFixed(1),
-    Hct: isSepsis ? (26 + Math.random() * 7).toFixed(1) : (38 + Math.random() * 6).toFixed(1),
-    Hgb: isSepsis ? (8.5 + Math.random() * 2.5).toFixed(1) : (13.0 + Math.random() * 2.5).toFixed(1),
-    Resp: isSepsis ? (24 + Math.random() * 10).toFixed(1) : (14 + Math.random() * 4).toFixed(1),
-    HCO3: isSepsis ? (16 + Math.random() * 7).toFixed(1) : (23 + Math.random() * 4).toFixed(1),
-    SIRS: isSepsis ? Math.floor(Math.random() * 3 + 2) : Math.floor(Math.random() * 2),
-    Potassium: (3.6 + Math.random() * 1.5).toFixed(2),
-    Creatinine: isSepsis ? (1.5 + Math.random() * 2.5).toFixed(2) : (0.7 + Math.random() * 0.4).toFixed(2),
-    Phosphate: (2.8 + Math.random() * 1.8).toFixed(2),
-    FiO2: isSepsis ? (0.45 + Math.random() * 0.35).toFixed(2) : (0.21 + Math.random() * 0.1).toFixed(2),
-    O2Sat: isSepsis ? (90 + Math.random() * 4).toFixed(1) : (97 + Math.random() * 3).toFixed(1),
-    Magnesium: (1.8 + Math.random() * 0.4).toFixed(2),
-    SaO2: isSepsis ? (89 + Math.random() * 5).toFixed(1) : (97 + Math.random() * 3).toFixed(1),
-    Lactate: isSepsis ? (2.4 + Math.random() * 3.5).toFixed(2) : (1.0 + Math.random() * 0.7).toFixed(2),
-    pH: isSepsis ? (7.25 + Math.random() * 0.08).toFixed(2) : (7.38 + Math.random() * 0.05).toFixed(2),
-    Calcium: (8.0 + Math.random() * 1.8).toFixed(1),
-    BUN: isSepsis ? (28 + Math.random() * 30).toFixed(1) : (13 + Math.random() * 8).toFixed(1),
-  };
-
-  for (const [feat, val] of Object.entries(randomValues)) {
     const input = document.getElementById(`input-${feat}`);
     if (input) input.value = val;
   }
@@ -143,8 +124,10 @@ function collectInputVitals() {
   const vitals = {};
   for (const feat of FEATURE_NAMES) {
     const el = document.getElementById(`input-${feat}`);
-    if (el) {
-      vitals[feat] = parseFloat(el.value) || 0.0;
+    if (el && el.value.trim() !== "") {
+      vitals[feat] = parseFloat(el.value);
+    } else {
+      vitals[feat] = null;
     }
   }
   return vitals;
@@ -152,6 +135,11 @@ function collectInputVitals() {
 
 async function executePrediction() {
   const vitals = collectInputVitals();
+  const btnPredict = document.getElementById("btn-run-prediction");
+  if (btnPredict) {
+    btnPredict.disabled = true;
+    btnPredict.textContent = "Analyzing...";
+  }
 
   try {
     const resp = await fetch("/api/predict", {
@@ -166,86 +154,52 @@ async function executePrediction() {
       return;
     }
   } catch (err) {
-    console.warn("REST API unreachable; using client inference engine.", err);
+    console.warn("Backend API call failed, falling back to local client model.", err);
+  } finally {
+    if (btnPredict) {
+      btnPredict.disabled = false;
+      btnPredict.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3" /></svg> Analyze Risk`;
+    }
   }
 
-  // Fallback client simulation if offline
-  renderPredictionResults(computeClientInference(vitals));
+  // Fallback client calculation if offline
+  renderPredictionResults(computeFallbackInference(vitals));
 }
 
-function computeClientInference(vitals) {
-  const temp = vitals.Temp || 37.0;
-  const resp = vitals.Resp || 16.0;
-  const lactate = vitals.Lactate || 1.2;
-  const creat = vitals.Creatinine || 0.9;
-  const sirs = vitals.SIRS || 0.0;
+function computeFallbackInference(vitals) {
+  const temp = vitals.Temp !== null ? vitals.Temp : 36.65;
+  const resp = vitals.Resp !== null ? vitals.Resp : 16.0;
+  const sirs = vitals.SIRS !== null ? vitals.SIRS : 0.0;
+  const be = vitals.BaseExcess !== null ? vitals.BaseExcess : 0.0;
+  const creat = vitals.Creatinine !== null ? vitals.Creatinine : 0.9;
 
-  let risk = 0.0;
-  if (temp > 38.5) risk += 0.30; else if (temp < 36.0) risk += 0.25; else risk -= 0.06;
-  if (resp > 22) risk += 0.20; else risk -= 0.04;
-  if (lactate > 2.0) risk += 0.25; else risk -= 0.05;
-  if (creat > 1.3) risk += 0.18;
-  if (sirs >= 2) risk += 0.10; else risk -= 0.06;
+  let logit = -3.5;
+  if (temp > 38.3) logit += 2.0; else if (temp < 36.0) logit += 1.5;
+  if (resp > 22) logit += 1.2;
+  if (sirs >= 2) logit += 0.8;
+  if (be > 3.0 || be < -3.0) logit += 0.9;
+  if (creat > 1.3) logit += 0.8;
 
-  const totalRaw = 0.35 + risk;
-  let prob = 1.0 / (1.0 + Math.exp(-totalRaw * 3.5 + 1.2));
-  prob = Math.max(0.04, Math.min(0.96, prob));
-
-  const alertLevel = prob >= 0.7 ? "CRITICAL" : (prob >= 0.4 ? "WARNING" : "NORMAL");
-  const alertColor = prob >= 0.7 ? "#ef4444" : (prob >= 0.4 ? "#f59e0b" : "#10b981");
-  const action = prob >= 0.7
-    ? "Initiate immediate sepsis resuscitation protocol: Blood cultures, IV broad-spectrum antibiotics, and fluid challenge."
-    : (prob >= 0.4 
-        ? "Close observation: Repeat lactate and arterial blood gases in 2 hours; evaluate infection source."
-        : "Standard ICU telemetry monitoring; low current probability of sepsis onset within 6 hours.");
-
-  // SHAP waterfall
-  const waterfall = BOTTLENECK_FEATURES.map((feat) => {
-    let sv = 0;
-    if (feat === "Temp") sv = (temp - 37.0) * 0.10;
-    else if (feat === "Resp") sv = (resp - 18.0) * 0.015;
-    else if (feat === "Creatinine") sv = (creat - 0.9) * 0.05;
-    else if (feat === "Hct") sv = -(vitals.Hct - 38.0) * 0.008;
-    else if (feat === "Hgb") sv = -(vitals.Hgb - 13.0) * 0.025;
-    else if (feat === "HCO3") sv = -(vitals.HCO3 - 24.0) * 0.01;
-    else if (feat === "SIRS") sv = sirs >= 2 ? 0.08 : -0.06;
-    else sv = (Math.random() * 0.06 - 0.03);
-
-    return {
-      feature: feat,
-      patient_value: vitals[feat] || 0.0,
-      shap_value: Math.round(sv * 1000) / 1000,
-      impact: sv > 0 ? "contributing" : "offsetting",
-      is_top_impact: TOP_SHAP_FEATURES.includes(feat),
-    };
-  }).sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value));
-
-  // GradCAM heatmaps
-  const gradcam_layers = {
-    E1: FEATURE_NAMES.map(f => f === "Hct" ? 0.95 : (f === "FiO2" ? 0.10 : 0.45)),
-    E2: FEATURE_NAMES.map(f => f === "Hct" ? 0.92 : (f === "Lactate" ? 0.12 : 0.48)),
-    E3: FEATURE_NAMES.map(f => f === "Phosphate" ? 0.94 : (f === "Lactate" ? 0.14 : 0.42)),
-    E4: FEATURE_NAMES.map(f => f === "Potassium" ? 0.90 : (f === "pH" || f === "Calcium" ? 0.15 : 0.40)),
-  };
-
-  const dhm_ranking = FEATURE_NAMES.map((feat, idx) => {
-    const score = [0, 1, 2, 3].reduce((acc, l) => acc + (0.9 ** (l + 1)) * gradcam_layers[`E${l+1}`][idx], 0);
-    return {
-      feature: feat,
-      score: Math.round(score * 1000) / 1000,
-      in_bottleneck: BOTTLENECK_FEATURES.includes(feat),
-    };
-  }).sort((a, b) => b.score - a.score);
+  const prob = 1.0 / (1.0 + Math.exp(-logit));
+  const isHigh = prob >= 0.30;
 
   return {
     prediction_probability: Math.round(prob * 1000) / 1000,
-    alert_level: alertLevel,
-    alert_color: alertColor,
-    clinical_action: action,
-    advance_hours_warning: 6,
-    shap_waterfall: waterfall,
-    dhm_ranking: dhm_ranking,
-    gradcam_layers: gradcam_layers,
+    risk_classification: prob >= 0.60 ? "High Risk" : (prob >= 0.30 ? "Moderate Risk" : "Low Risk"),
+    alert_level: prob >= 0.60 ? "HIGH" : (prob >= 0.30 ? "MODERATE" : "LOW"),
+    decision_threshold: 0.30,
+    is_above_threshold: isHigh,
+    interpretation_6h: isHigh
+      ? `Elevated risk of sepsis onset within the next 6 hours (probability ${(prob*100).toFixed(1)}% exceeds 30% threshold). Close clinical observation indicated.`
+      : `Low risk of sepsis onset within the next 6 hours (probability ${(prob*100).toFixed(1)}% is below 30% threshold). Routine ICU monitoring indicated.`,
+    warnings: ["Offline mode: using local estimator."],
+    shap_waterfall: BOTTLENECK_FEATURES.map(f => ({
+      feature: f,
+      patient_value: vitals[f] !== null ? vitals[f] : 0.0,
+      shap_value: f === "Temp" && temp > 38 ? 0.35 : (f === "Resp" && resp > 22 ? 0.18 : 0.02),
+      impact: (f === "Temp" && temp > 38) || (f === "Resp" && resp > 22) ? "contributing" : "offsetting",
+      is_top_impact: ["Temp", "Resp", "Creatinine"].includes(f)
+    }))
   };
 }
 
@@ -253,196 +207,105 @@ function renderPredictionResults(res) {
   const prob = res.prediction_probability;
   const pct = Math.round(prob * 100);
 
-  // 1. Update Circular Gauge
+  // 1. Gauge
   const circle = document.getElementById("gauge-progress-circle");
   const pctText = document.getElementById("gauge-percentage-text");
 
-  circle.setAttribute("stroke-dasharray", `${pct}, 100`);
-  pctText.textContent = `${pct}%`;
+  if (circle) circle.setAttribute("stroke-dasharray", `${pct}, 100`);
+  if (pctText) pctText.textContent = `${pct}%`;
 
-  if (res.alert_level === "CRITICAL") {
-    circle.style.stroke = "var(--color-crimson)";
-  } else if (res.alert_level === "WARNING") {
-    circle.style.stroke = "var(--color-amber)";
+  let alertClass = "alert-normal";
+  if (res.alert_level === "HIGH") {
+    alertClass = "alert-critical";
+    if (circle) circle.style.stroke = "var(--color-crimson)";
+  } else if (res.alert_level === "MODERATE") {
+    alertClass = "alert-warning";
+    if (circle) circle.style.stroke = "var(--color-amber)";
   } else {
-    circle.style.stroke = "var(--color-emerald)";
+    alertClass = "alert-normal";
+    if (circle) circle.style.stroke = "var(--color-emerald)";
   }
 
-  // 2. Update Alert Banner
+  // 2. Alert Banner
   const banner = document.getElementById("alert-banner");
   const icon = document.getElementById("alert-icon");
   const headline = document.getElementById("alert-headline");
   const action = document.getElementById("alert-action");
 
-  banner.className = `alert-banner alert-${res.alert_level.toLowerCase()}`;
-  if (res.alert_level === "CRITICAL") {
-    icon.textContent = "⚠";
-    headline.textContent = "CRITICAL: HIGH SEPSIS ONSET RISK (6H)";
-  } else if (res.alert_level === "WARNING") {
-    icon.textContent = "!";
-    headline.textContent = "WARNING: ELEVATED SEPSIS RISK";
-  } else {
-    icon.textContent = "✓";
-    headline.textContent = "NORMAL: LOW SEPSIS PROBABILITY";
+  if (banner) banner.className = `alert-banner ${alertClass}`;
+  if (icon) {
+    icon.textContent = res.alert_level === "HIGH" ? "⚠" : (res.alert_level === "MODERATE" ? "!" : "✓");
   }
-  action.textContent = res.clinical_action;
+  if (headline) {
+    headline.textContent = `${res.risk_classification.toUpperCase()} (${pct}%)`;
+  }
+  if (action) {
+    action.textContent = res.interpretation_6h;
+  }
 
-  // 3. Render SHAP Waterfall
-  renderWaterfall(res.shap_waterfall);
+  // 3. Threshold Badge
+  const thBadge = document.getElementById("threshold-status-badge");
+  if (thBadge) {
+    if (res.is_above_threshold) {
+      thBadge.textContent = "ELEVATED (≥0.30)";
+      thBadge.style.background = "rgba(239, 68, 68, 0.2)";
+      thBadge.style.color = "var(--color-crimson)";
+    } else {
+      thBadge.textContent = "BELOW THRESHOLD (<0.30)";
+      thBadge.style.background = "rgba(16, 185, 129, 0.2)";
+      thBadge.style.color = "var(--color-emerald)";
+    }
+  }
 
-  // 4. Render GradCAM Heatmaps & DHM Decision Line
-  renderGradCAM(res.gradcam_layers);
-  renderDHM(res.dhm_ranking);
+  // 4. Warnings
+  const warnCard = document.getElementById("warnings-card");
+  const warnList = document.getElementById("warnings-list");
+  if (warnCard && warnList) {
+    if (res.warnings && res.warnings.length > 0) {
+      warnList.innerHTML = res.warnings.map(w => `<li>${w}</li>`).join("");
+      warnCard.style.display = "block";
+    } else {
+      warnCard.style.display = "none";
+    }
+  }
+
+  // 5. SHAP Waterfall
+  renderWaterfall(res.shap_waterfall || []);
 }
 
 function renderWaterfall(waterfall) {
   const container = document.getElementById("shap-waterfall-list");
+  if (!container) return;
   container.innerHTML = "";
 
-  const maxVal = Math.max(...waterfall.map(item => Math.abs(item.shap_value)), 0.1);
-
-  waterfall.forEach((item) => {
-    const row = document.createElement("div");
-    row.className = "waterfall-row";
-
-    const widthPct = Math.min(100, Math.round((Math.abs(item.shap_value) / maxVal) * 100));
-    const isContributing = item.impact === "contributing";
-    const sign = isContributing ? "+" : "";
-
-    row.innerHTML = `
-      <div class="waterfall-feat-name ${item.is_top_impact ? 'is-key' : ''}">
-        ${item.is_top_impact ? '<span class="key-marker"></span>' : ''}
-        ${item.feature}
-      </div>
-      <div class="waterfall-bar-track">
-        <div class="waterfall-bar-fill ${isContributing ? 'fill-contributing' : 'fill-offsetting'}" 
-             style="width: ${widthPct}%"></div>
-      </div>
-      <div class="waterfall-val ${isContributing ? 'val-contributing' : 'val-offsetting'}">
-        ${sign}${item.shap_value.toFixed(2)}
-      </div>
-    `;
-    container.appendChild(row);
-  });
-}
-
-function renderGradCAM(layers) {
-  const container = document.getElementById("gradcam-layers-view");
-  container.innerHTML = "";
-
-  const layerNames = ["E1", "E2", "E3", "E4"];
-
-  layerNames.forEach((name) => {
-    const vals = layers[name] || [];
-    const col = document.createElement("div");
-    col.className = "layer-col";
-
-    let cellsHtml = "";
-    vals.forEach((v) => {
-      const alpha = Math.max(0.1, Math.min(1.0, v));
-      cellsHtml += `<div class="heatmap-cell" style="background: rgba(0, 240, 255, ${alpha})" title="${v}"></div>`;
-    });
-
-    col.innerHTML = `
-      <div class="layer-col-title">${name} (1D Conv)</div>
-      <div class="layer-heatmap-strip">${cellsHtml}</div>
-    `;
-    container.appendChild(col);
-  });
-}
-
-function renderDHM(ranked) {
-  const container = document.getElementById("dhm-bars-list");
-  container.innerHTML = "";
-
-  const maxScore = Math.max(...ranked.map(r => r.score), 1.0);
-
-  ranked.forEach((item, index) => {
-    const row = document.createElement("div");
-    row.className = "dhm-bar-row";
-
-    const widthPct = Math.min(100, Math.round((item.score / maxScore) * 100));
-
-    row.innerHTML = `
-      <div class="dhm-feat-label ${item.in_bottleneck ? 'in-bottleneck' : ''}">
-        #${index + 1} ${item.feature}
-      </div>
-      <div class="dhm-track">
-        <div class="dhm-fill ${item.in_bottleneck ? 'in-bottleneck' : ''}" style="width: ${widthPct}%"></div>
-      </div>
-      <div class="dhm-score-text">${item.score.toFixed(2)}</div>
-    `;
-    container.appendChild(row);
-  });
-}
-
-async function loadBenchmarks() {
-  try {
-    const res = await fetch("/api/benchmarks");
-    if (res.ok) {
-      benchmarksData = await res.json();
-      renderBenchmarkTable("table_1");
-      return;
-    }
-  } catch (err) {
-    console.warn("Could not fetch benchmarks API, using static paper metrics.", err);
+  if (waterfall.length === 0) {
+    container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">No feature attribution available.</div>`;
+    return;
   }
 
-  // Static fallback matching paper
-  benchmarksData = {
-    table_1_cross_validation: [
-      { Fold: "1", "F1 Score": 0.92, Precision: 0.92, Recall: 0.91, Accuracy: 0.93 },
-      { Fold: "2", "F1 Score": 0.92, Precision: 0.92, Recall: 0.92, Accuracy: 0.93 },
-      { Fold: "3", "F1 Score": 0.93, Precision: 0.95, Recall: 0.91, Accuracy: 0.93 },
-      { Fold: "4", "F1 Score": 0.93, Precision: 0.94, Recall: 0.93, Accuracy: 0.94 },
-      { Fold: "5", "F1 Score": 0.94, Precision: 0.94, Recall: 0.94, Accuracy: 0.94 },
-      { Fold: "Mean ± SD", "F1 Score": "0.93 ± 0.008", Precision: "0.93 ± 0.012", Recall: "0.92 ± 0.012", Accuracy: "0.94 ± 0.007" },
-    ],
-    table_2_model_comparison: [
-      { Model: "KNN", Accuracy: 0.88, "F1 Score": 0.85, Precision: 0.89, Recall: 0.78 },
-      { Model: "Gradient Boost", Accuracy: 0.89, "F1 Score": 0.87, Precision: 0.88, Recall: 0.86 },
-      { Model: "Random Forest", Accuracy: 0.89, "F1 Score": 0.88, Precision: 0.89, Recall: 0.88 },
-      { Model: "Naïve Bayes", Accuracy: 0.62, "F1 Score": 0.49, Precision: 0.59, Recall: 0.43 },
-      { Model: "XG Boost", Accuracy: 0.90, "F1 Score": 0.89, Precision: 0.90, Recall: 0.89 },
-      { Model: "Decision Tree", Accuracy: 0.86, "F1 Score": 0.84, Precision: 0.85, Recall: 0.84 },
-      { Model: "SVM", Accuracy: 0.87, "F1 Score": 0.86, Precision: 0.87, Recall: 0.86 },
-      { Model: "Logistic Regression", Accuracy: 0.64, "F1 Score": 0.52, Precision: 0.62, Recall: 0.45 },
-      { Model: "ADA Boost", Accuracy: 0.88, "F1 Score": 0.85, Precision: 0.88, Recall: 0.82 },
-      { Model: "XAutoNet (Proposed)", Accuracy: 0.93, "F1 Score": 0.92, Precision: 0.90, Recall: 0.94 },
-    ],
-  };
-  renderBenchmarkTable("table_1");
-}
+  const maxVal = Math.max(...waterfall.map(item => Math.abs(item.shap_value)), 0.05);
 
-function switchBenchmarkTab(tableKey, targetBtn) {
-  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
-  targetBtn.classList.add("active");
-  renderBenchmarkTable(tableKey);
-}
+  waterfall.forEach((item) => {
+    const isContributing = item.impact === "contributing";
+    const absVal = Math.abs(item.shap_value);
+    const barWidthPct = Math.min(100, Math.round((absVal / maxVal) * 100));
 
-function renderBenchmarkTable(tableKey) {
-  const container = document.getElementById("benchmark-table-container");
-  if (!benchmarksData) return;
+    const row = document.createElement("div");
+    row.className = `waterfall-item ${isContributing ? "item-contributing" : "item-offsetting"}`;
 
-  const data = tableKey === "table_1" 
-    ? benchmarksData.table_1_cross_validation 
-    : benchmarksData.table_2_model_comparison;
+    row.innerHTML = `
+      <div class="waterfall-meta">
+        <span class="feat-name">${item.feature}</span>
+        <span class="feat-patient-val">${item.patient_value !== undefined ? item.patient_value : "--"}</span>
+      </div>
+      <div class="waterfall-bar-track">
+        <div class="waterfall-bar ${isContributing ? "bar-positive" : "bar-negative"}" style="width: ${barWidthPct}%;"></div>
+      </div>
+      <div class="waterfall-val">
+        ${item.shap_value > 0 ? "+" : ""}${item.shap_value.toFixed(3)}
+      </div>
+    `;
 
-  if (!data || !data.length) return;
-
-  const headers = Object.keys(data[0]);
-  let ths = headers.map(h => `<th>${h}</th>`).join("");
-
-  let trs = data.map((row) => {
-    const isHighlight = (row.Fold && row.Fold.includes("Mean")) || (row.Model && row.Model.includes("XAutoNet"));
-    const tds = headers.map(h => `<td>${row[h]}</td>`).join("");
-    return `<tr class="${isHighlight ? 'highlight-row' : ''}">${tds}</tr>`;
-  }).join("");
-
-  container.innerHTML = `
-    <table class="benchmark-table">
-      <thead><tr>${ths}</tr></thead>
-      <tbody>${trs}</tbody>
-    </table>
-  `;
+    container.appendChild(row);
+  });
 }

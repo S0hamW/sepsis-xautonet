@@ -1,84 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>XAutoNet: Explainable AI Clinical Sepsis Early Warning System</title>
-  <meta name="description" content="AI clinical decision support system predicting sepsis onset 6 hours in advance with 1D GradCAM and DeepSHAP explainability.">
+  <title>XAutoNet: Sepsis Early Warning System (6-Hour Advance Horizon)</title>
+  <meta name="description"
+    content="Clinical neural network early warning system assessing risk of sepsis onset within 6 hours with SHAP explainability.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body class="clinical-theme">
-  <!-- Top Navigation / Telemetry Header -->
+  <!-- Header -->
   <header class="app-header">
     <div class="brand-container">
       <div class="brand-logo-icon">
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
         </svg>
       </div>
       <div>
-        <h1 class="brand-title">XAutoNet <span class="badge-accent">Clinical AI</span></h1>
-        <p class="brand-subtitle">Explainable Sepsis Early Warning System (6-Hour Advance Horizon)</p>
+        <h1 class="brand-title">XAutoNet <span class="badge-accent">Decision Support</span></h1>
+        <p class="brand-subtitle">Investigational Sepsis Early Warning System (6-Hour Horizon)</p>
       </div>
     </div>
     <div class="telemetry-status-pills">
       <div class="status-pill status-live">
         <span class="pulse-dot"></span>
-        <span>ICU Telemetry: Active</span>
+        <span>Status: Online</span>
       </div>
       <div class="status-pill status-info">
-        <span>Model: 1D Conv-AE + DNN</span>
-      </div>
-      <div class="status-pill status-paper">
-        <span>IEEE IRI 2023 Validated</span>
+        <span>Threshold: 0.30</span>
       </div>
     </div>
   </header>
 
   <main class="main-content-wrapper">
     <!-- Preset Case Selector Ribbon -->
-    <section class="patient-preset-ribbon" aria-label="Patient selection">
+    <section class="patient-preset-ribbon" aria-label="Preset Cases">
       <div class="ribbon-label">
-        <span class="icon-pulse">⚕</span> <strong>Clinical Case Selectors:</strong>
+        <strong>Test Profiles:</strong>
       </div>
       <div class="ribbon-buttons">
-        <button id="btn-patient-a" class="btn btn-preset btn-patient-a" title="Load Patient A from research paper">
-          <span class="patient-dot dot-normal"></span> Load Patient A (Normal / TN)
+        <button id="btn-patient-a" class="btn btn-preset" type="button" title="Load Patient A (Stable/Normal)">
+          <span class="patient-dot dot-normal"></span> Patient A (Normal Profile)
         </button>
-        <button id="btn-patient-b" class="btn btn-preset btn-patient-b" title="Load Patient B from research paper">
-          <span class="patient-dot dot-danger"></span> Load Patient B (Septic / TP)
+        <button id="btn-patient-b" class="btn btn-preset" type="button" title="Load Patient B (Acute Septic)">
+          <span class="patient-dot dot-danger"></span> Patient B (Septic Profile)
         </button>
-        <button id="btn-random-patient" class="btn btn-preset btn-neutral" title="Generate stochastic ICU profile">
-          <span class="patient-dot dot-neutral"></span> Random ICU Case
+        <button id="btn-patient-healthy" class="btn btn-preset" type="button" title="Load Healthy Baseline">
+          <span class="patient-dot dot-neutral"></span> Healthy Baseline
         </button>
       </div>
       <div id="case-description" class="case-description-text">
-        Viewing custom ICU telemetry parameters.
+        Select a profile above or input custom ICU clinical values below.
       </div>
     </section>
 
-    <!-- Core Interactive Grid -->
+    <!-- Main Grid -->
     <div class="clinical-dashboard-grid">
-      <!-- Left Column: Patient Biomarkers & Parameters (19 Features) -->
+      <!-- Left Column: 19 Clinical Input Features -->
       <section class="dashboard-card parameters-card" aria-labelledby="heading-biomarkers">
         <div class="card-header">
           <div>
-            <h2 id="heading-biomarkers" class="card-title">Patient Biomarkers & Laboratory Values</h2>
-            <p class="card-subtitle">19 Filter-Selected Features (PhysioNet Challenge 2019)</p>
+            <h2 id="heading-biomarkers" class="card-title">Patient Clinical Parameters</h2>
+            <p class="card-subtitle">19 Clinical Biomarkers (PhysioNet 2019)</p>
           </div>
-          <button id="btn-run-prediction" class="btn btn-primary pulse-btn">
+          <button id="btn-run-prediction" class="btn btn-primary pulse-btn" type="button">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polygon points="5 3 19 12 5 21 5 3"/>
+              <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
             Analyze Risk
           </button>
         </div>
 
         <div class="feature-categories-grid">
-          <!-- Category 1: Vital Signs & Derived -->
+          <!-- Vitals -->
           <div class="category-block">
             <h3 class="category-title">Vitals & Scores</h3>
             <div class="input-row">
@@ -107,7 +110,7 @@
             </div>
           </div>
 
-          <!-- Category 2: Blood Gas & Acid-Base -->
+          <!-- Blood Gas -->
           <div class="category-block">
             <h3 class="category-title">Blood Gas & Acid-Base</h3>
             <div class="input-row">
@@ -128,7 +131,7 @@
             </div>
           </div>
 
-          <!-- Category 3: Renal & Metabolic -->
+          <!-- Renal & Chemistry -->
           <div class="category-block">
             <h3 class="category-title">Renal & Chemistry</h3>
             <div class="input-row">
@@ -153,7 +156,7 @@
             </div>
           </div>
 
-          <!-- Category 4: Hematology & Electrolytes -->
+          <!-- Hematology & Electrolytes -->
           <div class="category-block">
             <h3 class="category-title">Hematology & Electrolytes</h3>
             <div class="input-row">
@@ -176,16 +179,15 @@
         </div>
       </section>
 
-      <!-- Right Column: Real-time Sepsis Alert & Prediction Gauge -->
+      <!-- Right Column: Results & 6-Hour Interpretation -->
       <section class="dashboard-card prediction-center-card" aria-labelledby="heading-prediction">
         <div class="card-header">
           <div>
-            <h2 id="heading-prediction" class="card-title">Early Warning Prediction Center</h2>
-            <p class="card-subtitle">Trained on 11 Latent Features (1D Conv1D Autoencoder)</p>
+            <h2 id="heading-prediction" class="card-title">Sepsis Risk Assessment</h2>
+            <p class="card-subtitle">Operational Decision Horizon: Next 6 Hours</p>
           </div>
           <div class="lead-time-tag">
-            <span class="lead-time-icon">⏱</span>
-            <span>+6 Hours Advance Notice</span>
+            <span>⏱ 6-Hour Lead Time</span>
           </div>
         </div>
 
@@ -193,19 +195,14 @@
           <!-- Circular Gauge Display -->
           <div class="gauge-container">
             <svg class="circular-chart" viewBox="0 0 36 36">
-              <path class="circle-bg"
-                d="M18 2.0845
+              <path class="circle-bg" d="M18 2.0845
                   a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path id="gauge-progress-circle" class="circle-progress"
-                stroke-dasharray="14, 100"
-                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path id="gauge-progress-circle" class="circle-progress" stroke-dasharray="14, 100" d="M18 2.0845
                   a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
+                  a 15.9155 15.9155 0 0 1 0 -31.831" />
               <text x="18" y="19" class="percentage" id="gauge-percentage-text">14%</text>
-              <text x="18" y="24" class="gauge-subtext">Sepsis Risk</text>
+              <text x="18" y="24" class="gauge-subtext">Estimated Risk</text>
             </svg>
           </div>
 
@@ -213,109 +210,81 @@
           <div id="alert-banner" class="alert-banner alert-normal">
             <div class="alert-icon-wrap" id="alert-icon">✓</div>
             <div class="alert-details">
-              <div class="alert-headline" id="alert-headline">NORMAL RISK PROFILE</div>
-              <div class="alert-action" id="alert-action">Standard ICU telemetry monitoring; low current probability of sepsis onset within 6 hours.</div>
+              <div class="alert-headline" id="alert-headline">LOW RISK</div>
+              <div class="alert-action" id="alert-action">
+                Low risk of sepsis onset within the next 6 hours. Routine ICU monitoring indicated.
+              </div>
             </div>
           </div>
 
-          <!-- Quick Metrics Bar -->
-          <div class="metrics-mini-grid">
-            <div class="metric-box">
-              <span class="metric-label">Model Sensitivity (Recall)</span>
-              <span class="metric-value text-cyan">94.0%</span>
+          <!-- Threshold Status Card -->
+          <div class="threshold-info-box" style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid var(--border-subtle); font-size: 0.85rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span><strong>Operational Decision Threshold:</strong> 0.30 (30%)</span>
+              <span id="threshold-status-badge" style="font-weight: 600; padding: 2px 8px; border-radius: 4px; background: rgba(16, 185, 129, 0.2); color: var(--color-emerald);">BELOW THRESHOLD</span>
             </div>
-            <div class="metric-box">
-              <span class="metric-label">Model Precision</span>
-              <span class="metric-value text-cyan">93.0%</span>
-            </div>
-            <div class="metric-box">
-              <span class="metric-label">F1-Score Benchmark</span>
-              <span class="metric-value text-emerald">0.93</span>
-            </div>
+            <p style="margin-top: 0.4rem; color: var(--text-secondary); font-size: 0.8rem;">
+              Probabilities ≥ 0.30 trigger elevated risk classification for sepsis onset within 6 hours.
+            </p>
+          </div>
+
+          <!-- Missing / Invalid Input Warnings -->
+          <div id="warnings-card" style="display: none; margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--color-amber); border-radius: 6px; font-size: 0.85rem;">
+            <strong style="color: var(--color-amber);">Input Warnings:</strong>
+            <ul id="warnings-list" style="margin-top: 0.3rem; padding-left: 1.2rem; color: var(--text-secondary);"></ul>
           </div>
         </div>
       </section>
     </div>
 
-    <!-- Dual Explainability Section (GradCAM + DeepSHAP) -->
-    <div class="xai-dual-section">
-      <!-- DeepSHAP Waterfall Card -->
-      <section class="dashboard-card xai-card" aria-labelledby="heading-shap">
+    <!-- Feature-Level Explanation Section (SHAP) -->
+    <div class="xai-dual-section" style="margin-top: 1.5rem;">
+      <section class="dashboard-card xai-card" aria-labelledby="heading-shap" style="width: 100%;">
         <div class="card-header">
           <div>
-            <h2 id="heading-shap" class="card-title">DeepSHAP Patient Attribution (Waterfall)</h2>
-            <p class="card-subtitle">Explains individual patient risk factors (Red: increases risk, Blue: decreases risk)</p>
+            <h2 id="heading-shap" class="card-title">Feature-Level Risk Attribution (SHAP)</h2>
+            <p class="card-subtitle">Contribution of individual clinical biomarkers to the 6-hour risk estimate</p>
           </div>
-          <div class="xai-badge badge-shap">DeepLIFT + Shapley</div>
+          <div class="xai-badge badge-shap">DeepSHAP Feature Impact</div>
         </div>
         <div class="waterfall-container" id="shap-waterfall-list">
-          <!-- Dynamic bars rendered by app.js -->
+          <!-- Rendered dynamically by app.js -->
         </div>
         <div class="waterfall-legend">
-          <span class="legend-item"><span class="legend-chip chip-contributing"></span> Risk-Increasing Factor (Positive SHAP)</span>
-          <span class="legend-item"><span class="legend-chip chip-offsetting"></span> Protective / Normal Factor (Negative SHAP)</span>
-          <span class="legend-item"><span class="legend-chip chip-key"></span> Top 5 High-Impact Biomarker</span>
-        </div>
-      </section>
-
-      <!-- 1D GradCAM & DHM Card -->
-      <section class="dashboard-card xai-card" aria-labelledby="heading-gradcam">
-        <div class="card-header">
-          <div>
-            <h2 id="heading-gradcam" class="card-title">1D GradCAM & Discounting HeatMap (DHM)</h2>
-            <p class="card-subtitle">Feature participation across Encoder Layers (E1 - E4) with &beta; = 0.9 Decision Line</p>
-          </div>
-          <div class="xai-badge badge-cam">GradCAM 1D</div>
-        </div>
-        <div class="gradcam-container">
-          <!-- Layer Heatmaps E1-E4 -->
-          <div class="layer-heatmaps-block">
-            <h3 class="subsection-title">Encoder Layer Activation Maps (EB1 → EB4)</h3>
-            <div id="gradcam-layers-view" class="layers-view-grid">
-              <!-- Rendered via JS -->
-            </div>
-          </div>
-
-          <!-- DHM Decision Line Ranking -->
-          <div class="dhm-ranking-block">
-            <div class="dhm-header">
-              <h3 class="subsection-title">DHM Bottleneck Ranking & Decision Boundary</h3>
-              <span class="decision-line-label">Decision Line: Top 11 Features</span>
-            </div>
-            <div id="dhm-bars-list" class="dhm-bars-wrapper">
-              <!-- Rendered via JS -->
-            </div>
-          </div>
+          <span class="legend-item"><span class="legend-chip chip-contributing"></span> Risk-Increasing Factor (Positive Contribution)</span>
+          <span class="legend-item"><span class="legend-chip chip-offsetting"></span> Protective / Low-Risk Factor (Negative Contribution)</span>
         </div>
       </section>
     </div>
 
-    <!-- Benchmark Replication Section (Tables I & II) -->
-    <section class="dashboard-card benchmarks-section" aria-labelledby="heading-benchmarks">
-      <div class="card-header">
-        <div>
-          <h2 id="heading-benchmarks" class="card-title">IEEE IRI 2023 Published Experimental Benchmarks</h2>
-          <p class="card-subtitle">Comparison of XAutoNet against 9 Machine Learning baseline classifiers and 5-Fold CV</p>
-        </div>
-        <div class="tab-selectors">
-          <button id="tab-table-1" class="tab-btn active">Table I: 5-Fold Cross Validation</button>
-          <button id="tab-table-2" class="tab-btn">Table II: ML Model Comparison</button>
-        </div>
-      </div>
+    <!-- Context Cards: How It Works & Research Scope -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+      <!-- How It Works -->
+      <section class="dashboard-card" style="padding: 1.25rem;">
+        <h3 style="font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--color-cyan);">How It Works</h3>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+          The system processes 19 clinical biomarkers collected during ICU telemetry. The 11 primary physiological indicators are standardized and passed through a 3-layer neural network trained on PhysioNet 2019 data. Sepsis risk is evaluated against an operational decision threshold of 0.30 to provide early warnings 6 hours ahead of potential onset.
+        </p>
+      </section>
 
-      <div class="table-responsive" id="benchmark-table-container">
-        <!-- Rendered via JS -->
-      </div>
-    </section>
+      <!-- Research & Clinical Disclaimer -->
+      <section class="dashboard-card" style="padding: 1.25rem;">
+        <h3 style="font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--color-amber);">Research &amp; About</h3>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+          This application is an investigational research prototype for AI-assisted clinical decision support. Predictions represent statistical probability of sepsis onset within 6 hours based on retrospective ICU data. It is <strong>not validated for primary clinical diagnosis</strong> or independent medical intervention.
+        </p>
+      </section>
+    </div>
   </main>
 
   <footer class="app-footer">
     <div class="footer-content">
-      <p><strong>XAutoNet Clinical Decision Support</strong> — Built on research by Chakraborty et al. (Jio Institute & Reliance Jio AICoE, IEEE IRI 2023).</p>
-      <p class="footer-note">For investigational ICU clinical assistance. Sepsis predictions represent 6-hour advance warning horizon based on 19 PhysioNet features.</p>
+      <p><strong>XAutoNet Clinical Decision Support Prototype</strong></p>
+      <p class="footer-note">For investigational ICU assistance only. Operational decision threshold: 0.30.</p>
     </div>
   </footer>
 
   <script src="app.js"></script>
 </body>
+
 </html>

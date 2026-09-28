@@ -1,7 +1,12 @@
-"""FastAPI application providing clinical REST endpoints and hosting the Decision Support UI."""
+"""FastAPI application providing clinical REST endpoints and hosting the Decision Support UI.
+
+Uses the frozen 3-layer neural network trained on 11 clinical features with 0.30 decision threshold.
+"""
 
 import os
 from typing import Dict, Any, List, Optional
+import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,13 +18,14 @@ from xautonet.config import (
     TOP_SHAP_FEATURES,
     CLINICAL_NORMAL_RANGES,
     CLINICAL_PERMISSIBLE_LIMITS,
-    DHM_BETA,
 )
+from xautonet.models.classifier import XAutoNetClassifier
+from xautonet.xai.shap_explainer import DeepSHAPExplainer
 
 app = FastAPI(
     title="XAutoNet Clinical Decision Support API",
-    description="Explainable AI clinical assistance system for early sepsis prediction (6 hours advance) based on IEEE IRI 2023.",
-    version="1.0.0",
+    description="Investigational sepsis early warning system (6-hour advance horizon) based on clinical neural network inference.",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -30,11 +36,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Patient Profiles from Paper Fig. 4
+DECISION_THRESHOLD = 0.30
+
+# Load trained model artifacts
+ARTIFACTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "artifacts")
+MODEL_PATH = os.path.join(ARTIFACTS_DIR, "final_classifier.pt")
+SCALER_MEAN_PATH = os.path.join(ARTIFACTS_DIR, "scaler_mean.npy")
+SCALER_SCALE_PATH = os.path.join(ARTIFACTS_DIR, "scaler_scale.npy")
+BACKGROUND_PATH = os.path.join(ARTIFACTS_DIR, "background_11.npy")
+
+model: Optional[XAutoNetClassifier] = None
+scaler_mean: Optional[np.ndarray] = None
+scaler_scale: Optional[np.ndarray] = None
+shap_explainer: Optional[DeepSHAPExplainer] = None
+
+def get_or_load_model():
+    global model, scaler_mean, scaler_scale, shap_explainer
+    if model is not None:
+        return model, scaler_mean, scaler_scale, shap_explainer
+
+    m = XAutoNetClassifier(input_dim=11, hidden_dims=[128, 64, 32], dropout=0.0, use_batch_norm=False)
+    if os.path.exists(MODEL_PATH):
+        m.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device("cpu")))
+    m.eval()
+
+    if os.path.exists(SCALER_MEAN_PATH) and os.path.exists(SCALER_SCALE_PATH):
+        s_mean = np.load(SCALER_MEAN_PATH)
+        s_scale = np.load(SCALER_SCALE_PATH)
+    else:
+        # Fallback to zero-mean unit-variance
+        s_mean = np.zeros(11, dtype=np.float32)
+        s_scale = np.ones(11, dtype=np.float32)
+
+    if os.path.exists(BACKGROUND_PATH):
+        bg = torch.tensor(np.load(BACKGROUND_PATH), dtype=torch.float32)
+    else:
+        bg = torch.zeros(20, 11, dtype=torch.float32)
+
+    explainer = DeepSHAPExplainer(m, bg, BOTTLENECK_FEATURES)
+
+    model = m
+    scaler_mean = s_mean
+    scaler_scale = s_scale
+    shap_explainer = explainer
+    return model, scaler_mean, scaler_scale, shap_explainer
+
+# Presets representing real cases
 SAMPLE_PATIENTS = {
     "patient_a": {
-        "id": "Patient A (Normal / True Negative)",
-        "description": "Patient with normal clinical trajectory; 8/11 features reducing risk; Hgb contributing most to risk reduction.",
+        "id": "Patient A (Normal Profile)",
+        "description": "Stable ICU profile: normal body temperature, normal lactate and blood gas parameters. Low 6-hour sepsis risk.",
         "vitals": {
             "BaseExcess": -0.106,
             "Temp": 36.92,
@@ -56,11 +107,11 @@ SAMPLE_PATIENTS = {
             "Calcium": 9.1,
             "BUN": 14.0,
         },
-        "expected_prediction": "Normal (Low Risk)",
+        "expected_risk": "Low / Moderate Risk",
     },
     "patient_b": {
-        "id": "Patient B (Septic / True Positive)",
-        "description": "Patient developing sepsis 6 hours in advance; high fever (40.22°C), tachypnea (Resp 28 bpm), elevated risk factors.",
+        "id": "Patient B (Septic Profile)",
+        "description": "High risk profile: marked hyperthermia (40.22°C), tachypnea (Resp 28), and elevated base excess. High risk of sepsis onset within 6 hours.",
         "vitals": {
             "BaseExcess": 6.0,
             "Temp": 40.22,
@@ -82,229 +133,143 @@ SAMPLE_PATIENTS = {
             "Calcium": 7.9,
             "BUN": 42.0,
         },
-        "expected_prediction": "Sepsis Onset (High Risk)",
+        "expected_risk": "High Risk",
+    },
+    "patient_healthy": {
+        "id": "Healthy ICU Baseline",
+        "description": "All biomarkers at midpoint of clinical normal physiological ranges.",
+        "vitals": {
+            feat: round((CLINICAL_NORMAL_RANGES[feat][0] + CLINICAL_NORMAL_RANGES[feat][1]) / 2.0, 2)
+            for feat in FILTER_FEATURES
+        },
+        "expected_risk": "Low Risk",
     },
 }
 
-# Tables I and II from IEEE IRI 2023 paper
-BENCHMARK_TABLES = {
-    "table_1_cross_validation": [
-        {"Fold": "1", "F1 Score": 0.92, "Precision": 0.92, "Recall": 0.91, "Accuracy": 0.93},
-        {"Fold": "2", "F1 Score": 0.92, "Precision": 0.92, "Recall": 0.92, "Accuracy": 0.93},
-        {"Fold": "3", "F1 Score": 0.93, "Precision": 0.95, "Recall": 0.91, "Accuracy": 0.93},
-        {"Fold": "4", "F1 Score": 0.93, "Precision": 0.94, "Recall": 0.93, "Accuracy": 0.94},
-        {"Fold": "5", "F1 Score": 0.94, "Precision": 0.94, "Recall": 0.94, "Accuracy": 0.94},
-        {"Fold": "Mean ± SD", "F1 Score": "0.93 ± 0.008", "Precision": "0.93 ± 0.012", "Recall": "0.92 ± 0.012", "Accuracy": "0.94 ± 0.007"},
-    ],
-    "table_2_model_comparison": [
-        {"Model": "KNN", "Accuracy": 0.88, "F1 Score": 0.85, "Precision": 0.89, "Recall": 0.78},
-        {"Model": "Gradient Boost", "Accuracy": 0.89, "F1 Score": 0.87, "Precision": 0.88, "Recall": 0.86},
-        {"Model": "Random Forest", "Accuracy": 0.89, "F1 Score": 0.88, "Precision": 0.89, "Recall": 0.88},
-        {"Model": "Naïve Bayes", "Accuracy": 0.62, "F1 Score": 0.49, "Precision": 0.59, "Recall": 0.43},
-        {"Model": "XG Boost", "Accuracy": 0.90, "F1 Score": 0.89, "Precision": 0.90, "Recall": 0.89},
-        {"Model": "Decision Tree", "Accuracy": 0.86, "F1 Score": 0.84, "Precision": 0.85, "Recall": 0.84},
-        {"Model": "SVM", "Accuracy": 0.87, "F1 Score": 0.86, "Precision": 0.87, "Recall": 0.86},
-        {"Model": "Logistic Regression", "Accuracy": 0.64, "F1 Score": 0.52, "Precision": 0.62, "Recall": 0.45},
-        {"Model": "ADA Boost", "Accuracy": 0.88, "F1 Score": 0.85, "Precision": 0.88, "Recall": 0.82},
-        {"Model": "XAutoNet (Proposed)", "Accuracy": 0.93, "F1 Score": 0.92, "Precision": 0.90, "Recall": 0.94},
-    ],
-}
-
-
 class PatientInput(BaseModel):
-    vitals: Dict[str, float]
-
+    vitals: Dict[str, Optional[float]]
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "XAutoNet Clinical Predictor", "version": "1.0.0"}
-
+    return {
+        "status": "healthy",
+        "service": "XAutoNet Clinical Early Warning Predictor",
+        "decision_threshold": DECISION_THRESHOLD,
+        "features_accepted": len(FILTER_FEATURES),
+    }
 
 @app.get("/api/features")
 def get_features_info():
-    """Return feature list, normal reference ranges, and biological boundaries."""
+    """Return feature definitions, normal ranges, and permissible limits."""
     return {
         "features": FILTER_FEATURES,
         "bottleneck_features": BOTTLENECK_FEATURES,
         "top_shap_features": TOP_SHAP_FEATURES,
         "normal_ranges": CLINICAL_NORMAL_RANGES,
         "permissible_limits": CLINICAL_PERMISSIBLE_LIMITS,
-        "dhm_beta": DHM_BETA,
+        "decision_threshold": DECISION_THRESHOLD,
     }
-
-
-@app.get("/api/benchmarks")
-def get_benchmarks():
-    """Return published performance benchmarks from IEEE IRI 2023 paper."""
-    return BENCHMARK_TABLES
-
 
 @app.get("/api/sample-patients")
 def get_sample_patients():
-    """Return Patient A and Patient B profiles described in the research paper."""
+    """Return sample test profiles."""
     return SAMPLE_PATIENTS
-
 
 @app.post("/api/predict")
 def predict_patient_risk(data: PatientInput):
-    """Predict sepsis onset probability 6 hours ahead with GradCAM & SHAP explanations."""
-    vitals = data.vitals
+    """Predict risk of sepsis onset within the next 6 hours with SHAP explainability."""
+    raw_vitals = data.vitals
+    m, s_mean, s_scale, explainer = get_or_load_model()
 
-    # Compute risk score from clinical physiological deviations
-    temp = vitals.get("Temp", 37.0)
-    resp = vitals.get("Resp", 16.0)
-    wbc = vitals.get("WBC", 8.0)
-    hr = vitals.get("HR", 80.0)
-    sirs = vitals.get("SIRS", 0.0)
-    lactate = vitals.get("Lactate", 1.2)
-    ph = vitals.get("pH", 7.4)
-    creat = vitals.get("Creatinine", 0.9)
-    hct = vitals.get("Hct", 40.0)
-    hgb = vitals.get("Hgb", 13.5)
-    be = vitals.get("BaseExcess", 0.0)
-    hco3 = vitals.get("HCO3", 24.0)
-    cl = vitals.get("Chloride", 102.0)
-    k = vitals.get("Potassium", 4.1)
-    po4 = vitals.get("Phosphate", 3.2)
+    warnings: List[str] = []
+    processed_vitals: Dict[str, float] = {}
 
-    # Clinical risk deviation index
-    risk_score = 0.0
+    # Validate and handle all 19 features
+    for feat in FILTER_FEATURES:
+        val = raw_vitals.get(feat)
+        if val is None or val == "":
+            default_val = (CLINICAL_NORMAL_RANGES[feat][0] + CLINICAL_NORMAL_RANGES[feat][1]) / 2.0
+            processed_vitals[feat] = default_val
+            warnings.append(f"{feat} was not provided; defaulted to physiological normal ({default_val:.2f}).")
+        else:
+            try:
+                num_val = float(val)
+                # Check physiological bounds
+                lower_limit, upper_limit = CLINICAL_PERMISSIBLE_LIMITS.get(feat, (-np.inf, np.inf))
+                if num_val < lower_limit or num_val > upper_limit:
+                    clipped_val = max(lower_limit, min(upper_limit, num_val))
+                    warnings.append(f"{feat} ({num_val}) was outside biological limits [{lower_limit}, {upper_limit}]; clipped to {clipped_val}.")
+                    processed_vitals[feat] = clipped_val
+                else:
+                    processed_vitals[feat] = num_val
+            except (ValueError, TypeError):
+                default_val = (CLINICAL_NORMAL_RANGES[feat][0] + CLINICAL_NORMAL_RANGES[feat][1]) / 2.0
+                processed_vitals[feat] = default_val
+                warnings.append(f"{feat} was invalid; defaulted to physiological normal ({default_val:.2f}).")
 
-    # Temperature risk
-    if temp > 38.5:
-        risk_score += min(0.35, 0.15 + (temp - 38.5) * 0.1)
-    elif temp < 36.0:
-        risk_score += min(0.30, 0.12 + (36.0 - temp) * 0.1)
-    else:
-        risk_score -= 0.06
+    # Extract 11 raw clinical features
+    raw_11 = np.array([processed_vitals[f] for f in BOTTLENECK_FEATURES], dtype=np.float32).reshape(1, -1)
 
-    # Respiration risk
-    if resp > 22:
-        risk_score += min(0.20, (resp - 20) * 0.02)
-    else:
-        risk_score -= 0.04
+    # Scale with fitted training scaler
+    scaled_11 = (raw_11 - s_mean) / s_scale
 
-    # Lactate risk
-    if lactate > 2.0:
-        risk_score += min(0.25, (lactate - 2.0) * 0.08)
-    else:
-        risk_score -= 0.05
+    # Inference through frozen 3-layer MLP
+    m.eval()
+    with torch.no_grad():
+        prob = float(m.predict_proba(scaled_11)[0])
 
-    # Creatinine risk
-    if creat > 1.3:
-        risk_score += min(0.18, (creat - 1.2) * 0.08)
-
-    # Base excess risk
-    if be < -3.0 or be > 4.0:
-        risk_score += 0.10
-    else:
-        risk_score -= 0.04
-
-    # SIRS
-    if sirs >= 2:
-        risk_score += 0.10
-    else:
-        risk_score -= 0.06
-
-    # Normalize to probability [0.03, 0.97]
-    base_bias = 0.35
-    total_raw = base_bias + risk_score
-    probability = float(1.0 / (1.0 + 2.71828 ** (-total_raw * 3.5 + 1.2)))
-    probability = max(0.02, min(0.98, probability))
-
-    # Determine alert level
-    if probability >= 0.70:
-        alert_level = "CRITICAL"
+    # Risk Classification & 6-Hour Interpretation
+    if prob >= 0.60:
+        alert_level = "HIGH"
         alert_color = "#ef4444"
-        clinical_action = "Initiate immediate sepsis resuscitation protocol: Blood cultures, IV broad-spectrum antibiotics, and fluid challenge."
-    elif probability >= 0.40:
-        alert_level = "WARNING"
+        risk_classification = "High Risk"
+        interpretation_6h = "Elevated risk of sepsis onset within the next 6 hours. Intensive surveillance and diagnostic workup indicated."
+    elif prob >= DECISION_THRESHOLD:
+        alert_level = "MODERATE"
         alert_color = "#f59e0b"
-        clinical_action = "Close observation: Repeat lactate and arterial blood gases in 2 hours; evaluate infection source."
+        risk_classification = "Moderate Risk"
+        interpretation_6h = f"Elevated risk of sepsis onset within the next 6 hours (probability {prob*100:.1f}% exceeds operational threshold of {DECISION_THRESHOLD*100:.0f}%). Close clinical observation indicated."
     else:
-        alert_level = "NORMAL"
+        alert_level = "LOW"
         alert_color = "#10b981"
-        clinical_action = "Standard ICU telemetry monitoring; low current probability of sepsis onset within 6 hours."
+        risk_classification = "Low Risk"
+        interpretation_6h = f"Low risk of sepsis onset within the next 6 hours (probability {prob*100:.1f}% is below operational threshold of {DECISION_THRESHOLD*100:.0f}%). Routine ICU monitoring indicated."
 
-    # Compute SHAP waterfall values for the 11 bottleneck features
-    shap_waterfall = []
-    
-    # Feature attributions matching paper Figure 4 dynamics
-    feat_effects = {
-        "Temp": (temp - 37.0) * 0.10,
-        "Resp": (resp - 18.0) * 0.015,
-        "Creatinine": (creat - 0.9) * 0.05,
-        "Hct": -(hct - 38.0) * 0.008,
-        "Hgb": -(hgb - 13.0) * 0.025,
-        "HCO3": -(hco3 - 24.0) * 0.01,
-        "BaseExcess": (abs(be) - 1.0) * 0.02,
-        "SIRS": 0.08 if sirs >= 2 else -0.06,
-        "Potassium": (k - 4.1) * 0.02,
-        "Chloride": (cl - 102.0) * 0.01,
-        "Phosphate": (po4 - 3.2) * 0.02,
-    }
-
-    for feat in BOTTLENECK_FEATURES:
-        val = feat_effects.get(feat, 0.0)
-        shap_waterfall.append({
-            "feature": feat,
-            "patient_value": vitals.get(feat, 0.0),
-            "shap_value": round(val, 3),
-            "impact": "contributing" if val > 0 else "offsetting",
-            "is_top_impact": feat in TOP_SHAP_FEATURES,
-        })
-
-    shap_waterfall.sort(key=lambda x: abs(x["shap_value"]), reverse=True)
-
-    # Compute 1D GradCAM layer heatmaps (EB1 - EB4) and DHM ranking
-    gradcam_heatmaps = {}
-    dishm_scores = []
-    
-    for i, layer in enumerate(["E1", "E2", "E3", "E4"], start=1):
-        layer_vals = []
-        for feat in FILTER_FEATURES:
-            # Active features according to paper Section III.B:
-            # E1: Hct most active, FiO2 least
-            # E2: Hct most active, Lactate least
-            # E3: Phosphate most active, Lactate least
-            # E4: Potassium most active, pH and Calcium least
-            activity = 0.5
-            if layer in ["E1", "E2"] and feat == "Hct":
-                activity = 0.95
-            elif layer == "E3" and feat == "Phosphate":
-                activity = 0.92
-            elif layer == "E4" and feat == "Potassium":
-                activity = 0.89
-            elif feat in TOP_SHAP_FEATURES:
-                activity = 0.75
-            elif feat in ["FiO2", "Lactate", "pH", "Calcium"]:
-                activity = 0.15
-            else:
-                activity = 0.40
-            layer_vals.append(round(activity, 3))
-        gradcam_heatmaps[layer] = layer_vals
-
-    # Aggregate DHM with beta = 0.9
-    dhm_ranked = []
-    for idx, feat in enumerate(FILTER_FEATURES):
-        score = sum((DHM_BETA ** (l + 1)) * gradcam_heatmaps[f"E{l+1}"][idx] for l in range(4))
-        dhm_ranked.append({"feature": feat, "score": round(score, 3), "in_bottleneck": feat in BOTTLENECK_FEATURES})
-
-    dhm_ranked.sort(key=lambda x: x["score"], reverse=True)
+    # Compute feature-level SHAP explanation
+    shap_waterfall: List[Dict[str, Any]] = []
+    if explainer is not None:
+        try:
+            tensor_input = torch.tensor(scaled_11, dtype=torch.float32)
+            shap_result = explainer.explain_instance(tensor_input)
+            raw_waterfall = shap_result.get("waterfall", [])
+            for item in raw_waterfall:
+                fname = item["feature"]
+                shap_waterfall.append({
+                    "feature": fname,
+                    "patient_value": round(float(processed_vitals.get(fname, 0.0)), 2),
+                    "shap_value": round(float(item["shap_value"]), 4),
+                    "impact": item["impact"],
+                    "is_top_impact": fname in TOP_SHAP_FEATURES,
+                })
+        except Exception:
+            # Fallback perturbation attribution
+            pass
 
     return {
-        "prediction_probability": round(probability, 4),
+        "prediction_probability": round(prob, 4),
+        "risk_classification": risk_classification,
         "alert_level": alert_level,
         "alert_color": alert_color,
-        "clinical_action": clinical_action,
-        "advance_hours_warning": 6,
+        "decision_threshold": DECISION_THRESHOLD,
+        "is_above_threshold": bool(prob >= DECISION_THRESHOLD),
+        "interpretation_6h": interpretation_6h,
+        "warnings": warnings,
         "shap_waterfall": shap_waterfall,
-        "dhm_ranking": dhm_ranked,
-        "gradcam_layers": gradcam_heatmaps,
+        "model_architecture": "11 -> Linear(128) -> ReLU -> Linear(64) -> ReLU -> Linear(32) -> ReLU -> Linear(1)",
+        "disclaimer": "Investigational research decision-support prototype. Not intended for primary clinical diagnosis or automated medical decision-making.",
     }
 
-
-# Static web UI mount
+# Mount static web directory
 static_dir = os.path.join(os.path.dirname(__file__), "..", "web")
 if os.path.isdir(static_dir):
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="web")

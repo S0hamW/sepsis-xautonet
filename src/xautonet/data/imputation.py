@@ -73,10 +73,31 @@ class MICEImputerWrapper:
         data_matrix = result_df[target_cols].values
         try:
             imputed_matrix = self.imputer.transform(data_matrix)
+            if imputed_matrix.shape[1] == len(target_cols):
+                result_df[target_cols] = imputed_matrix
+            else:
+                # IterativeImputer may skip all-NaN columns; assign column-by-column safely
+                for j, col in enumerate(target_cols):
+                    if j < imputed_matrix.shape[1]:
+                        result_df[col] = imputed_matrix[:, j]
+                    else:
+                        result_df[col] = result_df[col].fillna(0.0)
         except Exception:
-            imputed_matrix = self.fallback_imputer.transform(data_matrix)
+            try:
+                fallback_out = self.fallback_imputer.transform(data_matrix)
+                # SimpleImputer may drop all-NaN columns; map back by position of observed cols
+                observed_cols = [c for c in target_cols if not np.all(np.isnan(data_matrix[:, target_cols.index(c)]))]
+                col_map = {c: fallback_out[:, i] for i, c in enumerate(observed_cols) if i < fallback_out.shape[1]}
+                for col in target_cols:
+                    if col in col_map:
+                        result_df[col] = col_map[col]
+                    else:
+                        result_df[col] = result_df[col].fillna(0.0)
+            except Exception:
+                # Last-resort: fill remaining NaN with 0
+                for col in target_cols:
+                    result_df[col] = result_df[col].fillna(0.0)
 
-        result_df[target_cols] = imputed_matrix
         return result_df
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:

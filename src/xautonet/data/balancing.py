@@ -73,16 +73,22 @@ def balance_clinical_dataset(
 
     # 2. Cluster-based undersampling of majority class down to target_normal
     if n_neg > target_normal:
-        # Cluster centroids serve as the representative compressed majority samples
-        batch_size = min(1024, n_neg)
-        kmeans = MiniBatchKMeans(
-            n_clusters=target_normal,
-            random_state=random_state,
-            batch_size=batch_size,
-            n_init="auto",
-        )
-        kmeans.fit(X_neg)
-        X_neg_balanced = kmeans.cluster_centers_
+        # Cluster centroids serve as representative compressed majority samples.
+        # For very large cluster counts (>1000), MiniBatchKMeans distance matrices
+        # cause memory freeze; representative subsampling is used.
+        if target_normal <= 1000:
+            batch_size = min(1024, n_neg)
+            kmeans = MiniBatchKMeans(
+                n_clusters=target_normal,
+                random_state=random_state,
+                batch_size=batch_size,
+                n_init="auto",
+            )
+            kmeans.fit(X_neg)
+            X_neg_balanced = kmeans.cluster_centers_
+        else:
+            sampled_indices = rng.choice(n_neg, size=target_normal, replace=False)
+            X_neg_balanced = X_neg[sampled_indices]
     elif n_neg < target_normal:
         # If input has fewer than target_normal, replicate/sample up
         needed = target_normal - n_neg

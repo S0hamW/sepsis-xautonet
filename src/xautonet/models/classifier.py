@@ -16,8 +16,9 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 
 class XAutoNetClassifier(nn.Module):
-    """Deep neural network classifier head operating on the 11 latent features from Conv1D autoencoder.
+    """Deep neural network classifier operating on 11 clinical features.
 
+    Architecture: 11 -> Linear(128) -> ReLU -> Linear(64) -> ReLU -> Linear(32) -> ReLU -> Linear(1).
     Predicts onset of sepsis 6 hours in advance.
     """
 
@@ -25,50 +26,56 @@ class XAutoNetClassifier(nn.Module):
         self,
         input_dim: int = 11,
         hidden_dims: Optional[List[int]] = None,
-        dropout: float = 0.2,
+        dropout: float = 0.0,
+        use_batch_norm: bool = False,
     ):
         super().__init__()
-        hidden_dims = hidden_dims or [64, 32, 16]
+        hidden_dims = hidden_dims or [128, 64, 32]
         layers = []
         prev_dim = input_dim
 
         for h_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, h_dim))
-            layers.append(nn.BatchNorm1d(h_dim))
+            if use_batch_norm:
+                layers.append(nn.BatchNorm1d(h_dim))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=dropout))
+            if dropout > 0.0:
+                layers.append(nn.Dropout(p=dropout))
             prev_dim = h_dim
 
-        # Final classification neuron with Sigmoid activation
+        # Final classification neuron
         layers.append(nn.Linear(prev_dim, 1))
-        layers.append(nn.Sigmoid())
 
         self.network = nn.Sequential(*layers)
 
-    def forward(self, latent: torch.Tensor) -> torch.Tensor:
+    def forward_logits(self, x: torch.Tensor) -> torch.Tensor:
+        """Return raw unactivated logits for BCEWithLogitsLoss."""
+        return self.network(x)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass outputting sepsis onset probability [0, 1].
 
         Args:
-            latent: Tensor of shape (Batch, 11)
+            x: Tensor of shape (Batch, 11)
         Returns:
             prob: Tensor of shape (Batch, 1) representing P'(theta')
         """
-        return self.network(latent)
+        return torch.sigmoid(self.forward_logits(x))
 
-    def predict_proba(self, latent: torch.Tensor) -> np.ndarray:
+    def predict_proba(self, x: torch.Tensor) -> np.ndarray:
         """Return numpy array of probabilities."""
         self.eval()
         with torch.no_grad():
-            if isinstance(latent, np.ndarray):
-                latent = torch.tensor(latent, dtype=torch.float32)
-            probs = self.forward(latent).cpu().numpy().squeeze()
+            if isinstance(x, np.ndarray):
+                x = torch.tensor(x, dtype=torch.float32)
+            probs = self.forward(x).cpu().numpy().squeeze()
             if probs.ndim == 0:
                 probs = np.array([float(probs)])
             return probs
 
-    def predict(self, latent: torch.Tensor, threshold: float = 0.5) -> np.ndarray:
+    def predict(self, x: torch.Tensor, threshold: float = 0.30) -> np.ndarray:
         """Return binary class predictions (0 = normal, 1 = sepsis onset 6h ahead)."""
-        probs = self.predict_proba(latent)
+        probs = self.predict_proba(x)
         return (probs >= threshold).astype(int)
 
 
