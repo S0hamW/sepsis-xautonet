@@ -84,7 +84,7 @@ def get_or_load_model():
 # Presets representing real cases
 SAMPLE_PATIENTS = {
     "patient_a": {
-        "id": "Patient A (Normal Profile)",
+        "id": "Demo Case A (Normal Profile)",
         "description": "Stable ICU profile: normal body temperature, normal lactate and blood gas parameters. Low 6-hour sepsis risk.",
         "vitals": {
             "BaseExcess": -0.106,
@@ -110,7 +110,7 @@ SAMPLE_PATIENTS = {
         "expected_risk": "Low / Moderate Risk",
     },
     "patient_b": {
-        "id": "Patient B (Septic Profile)",
+        "id": "Demo Case B (Septic Profile)",
         "description": "High risk profile: marked hyperthermia (40.22°C), tachypnea (Resp 28), and elevated base excess. High risk of sepsis onset within 6 hours.",
         "vitals": {
             "BaseExcess": 6.0,
@@ -136,7 +136,7 @@ SAMPLE_PATIENTS = {
         "expected_risk": "High Risk",
     },
     "patient_healthy": {
-        "id": "Healthy ICU Baseline",
+        "id": "Healthy Reference",
         "description": "All biomarkers at midpoint of clinical normal physiological ranges.",
         "vitals": {
             feat: round((CLINICAL_NORMAL_RANGES[feat][0] + CLINICAL_NORMAL_RANGES[feat][1]) / 2.0, 2)

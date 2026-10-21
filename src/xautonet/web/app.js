@@ -15,7 +15,7 @@ const BOTTLENECK_FEATURES = [
 
 const PRESETS = {
   patient_a: {
-    description: "Patient A (Normal Profile): Afebrile (36.92°C), normal acid-base and lactate. Routine monitoring indicated.",
+    description: "Demo Case A (Normal Profile): Afebrile (36.92°C), normal acid-base and lactate. Routine monitoring indicated.",
     vitals: {
       BaseExcess: -0.106,
       Temp: 36.92,
@@ -39,7 +39,7 @@ const PRESETS = {
     }
   },
   patient_b: {
-    description: "Patient B (Septic Profile): High fever (40.22°C), tachypnea (Resp 28 bpm), elevated base excess (+6.0). Elevated risk of sepsis onset within 6 hours.",
+    description: "Demo Case B (Septic Profile): High fever (40.22°C), tachypnea (Resp 28 bpm), elevated base excess (+6.0). Elevated risk of sepsis onset within 6 hours.",
     vitals: {
       BaseExcess: 6.0,
       Temp: 40.22,
@@ -63,7 +63,7 @@ const PRESETS = {
     }
   },
   patient_healthy: {
-    description: "Healthy ICU Baseline: All 19 biomarkers set at physiological midpoints of clinical normal ranges.",
+    description: "Healthy Reference: All 19 biomarkers set at physiological midpoints of clinical normal ranges.",
     vitals: {
       BaseExcess: 0.0,
       Temp: 36.65,
@@ -193,13 +193,17 @@ function computeFallbackInference(vitals) {
       ? `Elevated risk of sepsis onset within the next 6 hours (probability ${(prob*100).toFixed(1)}% exceeds 30% threshold). Close clinical observation indicated.`
       : `Low risk of sepsis onset within the next 6 hours (probability ${(prob*100).toFixed(1)}% is below 30% threshold). Routine ICU monitoring indicated.`,
     warnings: ["Offline mode: using local estimator."],
-    shap_waterfall: BOTTLENECK_FEATURES.map(f => ({
-      feature: f,
-      patient_value: vitals[f] !== null ? vitals[f] : 0.0,
-      shap_value: f === "Temp" && temp > 38 ? 0.35 : (f === "Resp" && resp > 22 ? 0.18 : 0.02),
-      impact: (f === "Temp" && temp > 38) || (f === "Resp" && resp > 22) ? "contributing" : "offsetting",
-      is_top_impact: ["Temp", "Resp", "Creatinine"].includes(f)
-    }))
+    shap_waterfall: BOTTLENECK_FEATURES.map(f => {
+      const isRiskIncrease = (f === "Temp" && temp > 38) || (f === "Resp" && resp > 22) || (f === "Creatinine" && creat > 1.3);
+      const val = isRiskIncrease ? (f === "Temp" ? 0.35 : 0.18) : -0.06;
+      return {
+        feature: f,
+        patient_value: vitals[f] !== null ? vitals[f] : 0.0,
+        shap_value: val,
+        impact: val > 0 ? "contributing" : "offsetting",
+        is_top_impact: ["Temp", "Resp", "Creatinine"].includes(f)
+      };
+    })
   };
 }
 
@@ -243,19 +247,6 @@ function renderPredictionResults(res) {
     action.textContent = res.interpretation_6h;
   }
 
-  // 3. Threshold Badge
-  const thBadge = document.getElementById("threshold-status-badge");
-  if (thBadge) {
-    if (res.is_above_threshold) {
-      thBadge.textContent = "ELEVATED (≥0.30)";
-      thBadge.style.background = "rgba(239, 68, 68, 0.2)";
-      thBadge.style.color = "var(--color-crimson)";
-    } else {
-      thBadge.textContent = "BELOW THRESHOLD (<0.30)";
-      thBadge.style.background = "rgba(16, 185, 129, 0.2)";
-      thBadge.style.color = "var(--color-emerald)";
-    }
-  }
 
   // 4. Warnings
   const warnCard = document.getElementById("warnings-card");
@@ -286,23 +277,28 @@ function renderWaterfall(waterfall) {
   const maxVal = Math.max(...waterfall.map(item => Math.abs(item.shap_value)), 0.05);
 
   waterfall.forEach((item) => {
-    const isContributing = item.impact === "contributing";
+    // Risk increase -> RED (positive contribution to sepsis risk)
+    // Risk decrease -> GREEN (negative / protective contribution)
+    const isRiskIncrease = item.shap_value > 0 || (item.shap_value === 0 && item.impact === "contributing");
     const absVal = Math.abs(item.shap_value);
-    const barWidthPct = Math.min(100, Math.round((absVal / maxVal) * 100));
+    const barWidthPct = Math.min(100, Math.max(5, Math.round((absVal / maxVal) * 100)));
 
     const row = document.createElement("div");
-    row.className = `waterfall-item ${isContributing ? "item-contributing" : "item-offsetting"}`;
+    row.className = "waterfall-row";
+
+    const formattedVal = `${item.shap_value > 0 ? "+" : ""}${item.shap_value.toFixed(4)}`;
+    const directionLabel = isRiskIncrease ? "Risk Increase (RED)" : "Risk Decrease (GREEN)";
 
     row.innerHTML = `
-      <div class="waterfall-meta">
-        <span class="feat-name">${item.feature}</span>
-        <span class="feat-patient-val">${item.patient_value !== undefined ? item.patient_value : "--"}</span>
+      <div class="waterfall-feat-name ${item.is_top_impact ? "is-key" : ""}" title="${item.feature} (Value: ${item.patient_value !== undefined ? item.patient_value : "--"})">
+        ${item.is_top_impact ? '<span class="key-marker"></span>' : ''}
+        <span>${item.feature}</span>
       </div>
-      <div class="waterfall-bar-track">
-        <div class="waterfall-bar ${isContributing ? "bar-positive" : "bar-negative"}" style="width: ${barWidthPct}%;"></div>
+      <div class="waterfall-bar-track" title="${item.feature}: ${formattedVal} — ${directionLabel}">
+        <div class="waterfall-bar-fill ${isRiskIncrease ? "fill-contributing" : "fill-offsetting"}" style="width: ${barWidthPct}%;"></div>
       </div>
-      <div class="waterfall-val">
-        ${item.shap_value > 0 ? "+" : ""}${item.shap_value.toFixed(3)}
+      <div class="waterfall-val ${isRiskIncrease ? "val-contributing" : "val-offsetting"}" title="${directionLabel}">
+        ${formattedVal}
       </div>
     `;
 

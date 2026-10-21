@@ -48,14 +48,14 @@
         <strong>Test Profiles:</strong>
       </div>
       <div class="ribbon-buttons">
-        <button id="btn-patient-a" class="btn btn-preset" type="button" title="Load Patient A (Stable/Normal)">
-          <span class="patient-dot dot-normal"></span> Patient A (Normal Profile)
+        <button id="btn-patient-a" class="btn btn-preset" type="button" title="Load Demo Case A (Stable/Normal)">
+          <span class="patient-dot dot-normal"></span> Demo Case A (Normal Profile)
         </button>
-        <button id="btn-patient-b" class="btn btn-preset" type="button" title="Load Patient B (Acute Septic)">
-          <span class="patient-dot dot-danger"></span> Patient B (Septic Profile)
+        <button id="btn-patient-b" class="btn btn-preset" type="button" title="Load Demo Case B (Acute Septic)">
+          <span class="patient-dot dot-danger"></span> Demo Case B (Septic Profile)
         </button>
-        <button id="btn-patient-healthy" class="btn btn-preset" type="button" title="Load Healthy Baseline">
-          <span class="patient-dot dot-neutral"></span> Healthy Baseline
+        <button id="btn-patient-healthy" class="btn btn-preset" type="button" title="Load Healthy Reference">
+          <span class="patient-dot dot-neutral"></span> Healthy Reference
         </button>
       </div>
       <div id="case-description" class="case-description-text">
@@ -217,16 +217,6 @@
             </div>
           </div>
 
-          <!-- Threshold Status Card -->
-          <div class="threshold-info-box" style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid var(--border-subtle); font-size: 0.85rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span><strong>Operational Decision Threshold:</strong> 0.30 (30%)</span>
-              <span id="threshold-status-badge" style="font-weight: 600; padding: 2px 8px; border-radius: 4px; background: rgba(16, 185, 129, 0.2); color: var(--color-emerald);">BELOW THRESHOLD</span>
-            </div>
-            <p style="margin-top: 0.4rem; color: var(--text-secondary); font-size: 0.8rem;">
-              Probabilities ≥ 0.30 trigger elevated risk classification for sepsis onset within 6 hours.
-            </p>
-          </div>
 
           <!-- Missing / Invalid Input Warnings -->
           <div id="warnings-card" style="display: none; margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--color-amber); border-radius: 6px; font-size: 0.85rem;">
@@ -251,8 +241,8 @@
           <!-- Rendered dynamically by app.js -->
         </div>
         <div class="waterfall-legend">
-          <span class="legend-item"><span class="legend-chip chip-contributing"></span> Risk-Increasing Factor (Positive Contribution)</span>
-          <span class="legend-item"><span class="legend-chip chip-offsetting"></span> Protective / Low-Risk Factor (Negative Contribution)</span>
+          <span class="legend-item"><span class="legend-chip chip-contributing"></span> <strong>RED: Increases Sepsis Risk (+SHAP)</strong></span>
+          <span class="legend-item"><span class="legend-chip chip-offsetting"></span> <strong>GREEN: Decreases Sepsis Risk (−SHAP)</strong></span>
         </div>
       </section>
     </div>
